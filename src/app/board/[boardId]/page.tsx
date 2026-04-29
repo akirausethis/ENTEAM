@@ -1,84 +1,83 @@
-import { db } from "../../../lib/db"; // Sesuaikan jumlah titiknya!
-import { notFound } from "next/navigation";
+import { db } from "@/lib/db";
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Settings, Users, MoreHorizontal } from "lucide-react";
-import { ListContainer } from "./_components/list-container";
+import { ArrowLeft, Users, Settings, MoreHorizontal, Plus } from "lucide-react";
+import { BoardContent } from "@/components/board-content"; // Kamu perlu bikin file ini nanti
 
-interface BoardIdPageProps {
-  params: Promise<{ boardId: string }>;
-}
+export default async function BoardIdPage({ params }: { params: { boardId: string } }) {
+  const { boardId } = params;
+  
+  // 1. Cek User
+  const cookieStore = await cookies();
+  const userName = cookieStore.get("user_name")?.value;
+  const user = await db.user.findFirst({ where: { name: userName } });
 
-export default async function BoardIdPage({ params }: BoardIdPageProps) {
-  const { boardId } = await params;
+  if (!user) redirect("/sign-in");
 
-const board = await db.board.findUnique({
-    where: { id: boardId },
+  // 2. Ambil Data Board + List + Card
+  const board = await db.board.findFirst({
+    where: {
+      id: boardId,
+      userId: user.id, // Safety: Biar gak bisa intip board orang lewat URL
+    },
     include: {
       lists: {
+        orderBy: { order: "asc" },
         include: {
-          cards: {
-            orderBy: {
-              order: "asc", // Urutkan kartu berdasarkan order
-            },
-          },
-        },
-        orderBy: {
-          order: "asc", // Urutkan list berdasarkan order
+          cards: { orderBy: { order: "asc" } },
         },
       },
     },
   });
 
-  if (!board) notFound();
+  if (!board) redirect("/dashboard");
 
   return (
-    <div className="h-full w-full flex flex-col overflow-hidden">
-      
-      {/* BOARD HEADER (Specific to this project) */}
-      <header className="h-20 border-b border-zinc-800/60 flex items-center justify-between px-8 bg-zinc-950/40 backdrop-blur-sm shrink-0">
+    <div className="h-full flex flex-col bg-zinc-950">
+      {/* HEADER BOARD */}
+      <div className="flex items-center justify-between p-6 border-b border-zinc-900">
         <div className="flex items-center gap-4">
-          {/* Tombol Back ke Dashboard */}
+          {/* FIX TOMBOL BACK: Arahkan ke /dashboard */}
           <Link 
-            href="/" 
-            className="p-3 rounded-2xl bg-zinc-900 border border-zinc-800 text-zinc-500 hover:text-white hover:border-zinc-700 transition-all active:scale-95"
+            href="/dashboard" 
+            className="w-10 h-10 bg-zinc-900 rounded-xl flex items-center justify-center border border-zinc-800 hover:bg-zinc-800 transition-all"
           >
-            <ArrowLeft className="w-4 h-4" />
+            <ArrowLeft className="w-5 h-5 text-zinc-400" />
           </Link>
+          
           <div>
-            <h2 className="text-xl font-bold tracking-tight text-white">{board.title}</h2>
-            <div className="flex items-center gap-2 text-[10px] text-zinc-600 font-bold uppercase tracking-wider mt-0.5">
+            <h1 className="text-2xl font-black text-white italic tracking-tight uppercase">
+              {board.title}
+            </h1>
+            <div className="flex items-center gap-3 text-[10px] font-bold text-zinc-500 uppercase tracking-widest mt-0.5">
               <span>Updated 5 min ago</span>
-              <span>•</span>
-              <Users className="w-3 h-3 text-zinc-700" />
-              <span>3 Members</span>
+              <span className="w-1 h-1 bg-zinc-800 rounded-full" />
+              <div className="flex items-center gap-1">
+                <Users className="w-3 h-3" /> 1 Member
+              </div>
             </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          <button className="flex items-center gap-2 p-2.5 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all font-medium text-xs">
-            <Users className="w-3.5 h-3.5" />
-            Invite
+        <div className="flex items-center gap-4">
+          <button className="flex items-center gap-2 px-4 py-2 bg-zinc-900 border border-zinc-800 rounded-xl text-xs font-bold text-zinc-400 hover:text-white transition-all">
+            <Users className="w-4 h-4" /> Invite
           </button>
-          <button className="flex items-center gap-2 p-2.5 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all font-medium text-xs">
-            <Settings className="w-3.5 h-3.5" />
-            Board Settings
+          <button className="flex items-center gap-2 px-4 py-2 bg-zinc-900 border border-zinc-800 rounded-xl text-xs font-bold text-zinc-400 hover:text-white transition-all">
+            <Settings className="w-4 h-4" /> Board Settings
           </button>
-          <div className="w-px h-6 bg-zinc-800/80 mx-1" />
-          <button className="p-3 rounded-xl text-zinc-600 hover:text-white hover:bg-zinc-800 transition-all">
-            <MoreHorizontal className="w-4 h-4" />
+          <button className="p-2 text-zinc-500">
+            <MoreHorizontal className="w-5 h-5" />
           </button>
         </div>
-      </header>
+      </div>
 
-{/* Area Kanban */}
-      <main className="flex-1 overflow-hidden p-8">
-        {/* 2. OPER DATA-NYA DI SINI (Ini obat error-nya) */}
-        <ListContainer 
-          boardId={boardId} 
-          data={board.lists} 
-        />
-      </main>
+      {/* CONTENT AREA (Kanban Board) */}
+      <div className="flex-1 overflow-x-auto p-6">
+        {/* Oper data lists ke Client Component agar bisa Drag & Drop */}
+        <BoardContent boardId={boardId} initialData={board.lists} />
+      </div>
     </div>
   );
 }

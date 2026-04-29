@@ -11,7 +11,6 @@ import { deleteBoardAction } from "../board/[boardId]/_actions";
 interface Board {
   id: string;
   title: string;
-  background: string;
 }
 
 interface DashboardClientProps {

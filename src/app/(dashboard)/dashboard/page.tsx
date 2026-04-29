@@ -1,28 +1,37 @@
 import { db } from "@/lib/db";
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
 import DashboardClient from "../dashboard-client";
 
 /**
  * SERVER ACTION
- * Fungsi ini berjalan di server untuk membuat board baru.
- * Kita kirim fungsi ini sebagai props ke Client Component.
+ * Sekarang sudah pakai userId dari session cookie.
  */
 async function createBoardAction(title: string) {
   "use server";
 
   try {
-    // 1. Buat board baru di database
+    const cookieStore = await cookies();
+    const userName = cookieStore.get("user_name")?.value;
+
+    if (!userName) return undefined;
+
+    // 1. Cari user di DB untuk dapat ID-nya
+    const user = await db.user.findFirst({
+      where: { name: userName }
+    });
+
+    if (!user) return undefined;
+
+    // 2. Buat board baru (Tanpa field 'background' karena gak ada di schema)
     const newBoard = await db.board.create({
       data: {
         title,
-        background: "indigo", // Default background
+        userId: user.id, // WAJIB ADA INI NGAB
       },
     });
 
-    // 2. Refresh data di halaman dashboard secara real-time
-    revalidatePath("/");
-
-    // 3. Kembalikan data board agar Client bisa redirect ke /board/[id]
+    revalidatePath("/dashboard");
     return newBoard;
   } catch (error) {
     console.error("CREATE_BOARD_ERROR:", error);
@@ -31,19 +40,25 @@ async function createBoardAction(title: string) {
 }
 
 export default async function DashboardPage() {
-  // 1. Ambil semua board milik user dari database
+  const cookieStore = await cookies();
+  const userName = cookieStore.get("user_name")?.value;
+
+  // 1. Ambil info user
+  const user = await db.user.findFirst({
+    where: { name: userName }
+  });
+
+  // 2. Ambil board KHUSUS milik user yang login
   const boards = await db.board.findMany({
+    where: {
+      userId: user?.id
+    },
     orderBy: {
-      createdAt: "desc", // Yang terbaru muncul di atas
+      createdAt: "desc",
     },
   });
 
   return (
-    /**
-     * Kita panggil DashboardClient (file yang barusan kita buat).
-     * * KEY: Sangat penting! Menggunakan boards.length sebagai key akan 
-     * memaksa Client Component reset state saat jumlah data berubah.
-     */
     <DashboardClient 
       key={boards.length}
       initialData={boards} 

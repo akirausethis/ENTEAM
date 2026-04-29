@@ -2,134 +2,127 @@
 
 import { db } from "@/lib/db";
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
 
 /**
- * AI ASSISTANT ACTION (Direct API Fetch Version)
- * Tanpa library tambahan, langsung tembak ke Google Gemini API v1 Stable
+ * HELPER: Ambil User dari Cookie Session
+ */
+async function getSessionUser() {
+  const cookieStore = await cookies();
+  const userName = cookieStore.get("user_name")?.value;
+  if (!userName) return null;
+
+  return await db.user.findFirst({
+    where: { name: userName },
+  });
+}
+
+/**
+ * AI ASSISTANT ACTION
+ * Menggunakan AI untuk membuat card di workspace yang tepat milik user.
  */
 export async function createCardByAI(prompt: string) {
   try {
+    const user = await getSessionUser();
+    if (!user) return { success: false, message: "Login dulu Ngab!" };
+
     const API_KEY = process.env.GEMINI_API_KEY;
+    if (!API_KEY) return { success: false, message: "API Key Gemini ilang di .env!" };
 
-    if (!API_KEY) {
-      return { success: false, message: "API Key Gemini belum dipasang di .env Ngab!" };
-    }
-
-    // Kita pakai fetch langsung ke endpoint v1 Stable (Anti 404)
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`,
       {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                {
-                  text: `Kamu adalah asisten database untuk EnTeam. Tugasmu mengekstrak data dari user. 
-                         Balas HANYA dengan JSON mentah tanpa markdown: {"taskTitle": "nama tugas", "workspaceName": "nama board"}. 
-                         Pesan user: ${prompt}`,
-                },
-              ],
-            },
-          ],
+          contents: [{
+            parts: [{
+              text: `Kamu adalah asisten database EnTeam. Ekstrak data dari user. 
+                     Balas HANYA JSON mentah: {"taskTitle": "nama tugas", "workspaceName": "nama board"}. 
+                     Pesan user: ${prompt}`,
+            }],
+          }],
         }),
       }
     );
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      console.error("GOOGLE_API_ERROR:", errorData);
-      return { success: false, message: "Gagal ngobrol sama Gemini. Cek terminal!" };
-    }
+    if (!response.ok) return { success: false, message: "Gemini lagi pusing, cek terminal!" };
 
     const data = await response.json();
-    
-    // Parsing response teks dari struktur JSON Google
     const responseText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    
-    if (!responseText) {
-      return { success: false, message: "AI gak kasih jawaban Ngab, coba lagi." };
-    }
+    const jsonMatch = responseText?.match(/\{[\s\S]*\}/);
 
-    // Pembersih JSON untuk nangkep teks di antara { ... }
-    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      return { success: false, message: "Format AI ngaco, coba perintah yang lebih jelas." };
-    }
+    if (!jsonMatch) return { success: false, message: "AI gagal paham perintahmu." };
 
-    const aiData = JSON.parse(jsonMatch[0]);
-    const { taskTitle, workspaceName } = aiData;
+    const { taskTitle, workspaceName } = JSON.parse(jsonMatch[0]);
 
-    if (!taskTitle) {
-      return { success: false, message: "Judul tugas gak nangkep Ngab." };
-    }
-
-    // Ambil semua board untuk pencarian fleksibel
+    // Cek board milik USER INI SAJA
     const allBoards = await db.board.findMany({
-      include: { 
-        lists: { 
-          orderBy: { order: "asc" }, 
-          take: 1 
-        } 
-      }
+      where: { userId: user.id },
+      include: { lists: { orderBy: { order: "asc" }, take: 1 } }
     });
 
-    if (allBoards.length === 0) {
-      return { success: false, message: "Kamu belum punya workspace." };
-    }
+    if (allBoards.length === 0) return { success: false, message: "Kamu belum punya workspace." };
 
-    // Cari board yang mirip, kalau gak ketemu pake board pertama
     const targetBoard = allBoards.find(b => 
       workspaceName && b.title.toLowerCase().includes(workspaceName.toLowerCase())
     ) || allBoards[0];
 
     const targetList = targetBoard.lists[0];
+    if (!targetList) return { success: false, message: "Workspace belum punya kolom." };
 
-    if (!targetList) {
-      return { success: false, message: `Workspace "${targetBoard.title}" belum punya kolom.` };
-    }
-
-    // Hitung order terakhir
     const lastCard = await db.card.findFirst({
       where: { listId: targetList.id },
       orderBy: { order: "desc" },
     });
     const nextOrder = lastCard ? lastCard.order + 1 : 1;
 
-    // Simpan ke Database
     await db.card.create({
       data: {
         title: taskTitle,
         listId: targetList.id,
         order: nextOrder,
-        description: "Created by AI Assistant ✨",
+        description: "Created by Gemini AI ✨",
       }
     });
 
-    revalidatePath("/");
+    revalidatePath("/dashboard");
     revalidatePath(`/board/${targetBoard.id}`);
 
-    return { 
-      success: true, 
-      message: `Anjay! Tugas "${taskTitle}" masuk ke "${targetBoard.title}".` 
-    };
-
+    return { success: true, message: `Anjay! "${taskTitle}" masuk ke "${targetBoard.title}".` };
   } catch (error) {
-    console.error("--- ERROR_LOG ---");
-    if (error instanceof Error) console.error(error.message);
-    return { success: false, message: "Gagal eksekusi. Pastikan internet lancar!" };
+    console.error(error);
+    return { success: false, message: "Koneksi internet atau server lagi bermasalah." };
   }
 }
 
-// --- BASIC BOARD ACTIONS ---
+// --- BOARD ACTIONS ---
+
+export async function createBoardAction(title: string) {
+  try {
+    const user = await getSessionUser(); // Fungsi yang kita buat tadi buat ambil user dari cookie
+    if (!user) return { error: "Login dulu Ngab!" };
+
+    const board = await db.board.create({
+      data: {
+        title,
+        userId: user.id,
+      },
+    });
+
+    revalidatePath("/dashboard");
+    // SANGAT PENTING: Return ID board-nya
+    return { success: true, id: board.id }; 
+  } catch (error) {
+    console.error(error);
+    return { error: "Gagal membuat board ke database." };
+  }
+}
 
 export async function deleteBoardAction(id: string) {
   try {
     await db.board.delete({ where: { id } });
-    revalidatePath("/");
+    revalidatePath("/dashboard");
     return { success: true };
   } catch {
     throw new Error("Failed to delete board");
@@ -140,6 +133,7 @@ export async function deleteBoardAction(id: string) {
 
 export async function createList(boardId: string, title: string) {
   try {
+    // Cari order terakhir biar list baru ada di paling kanan
     const lastList = await db.list.findFirst({
       where: { boardId },
       orderBy: { order: "desc" },
@@ -149,10 +143,12 @@ export async function createList(boardId: string, title: string) {
     const list = await db.list.create({
       data: { title, boardId, order: newOrder },
     });
+
     revalidatePath(`/board/${boardId}`);
     return list;
-  } catch {
-    throw new Error("Failed to create list");
+  } catch (error) {
+    console.error("DB_ERROR:", error);
+    throw new Error("Gagal membuat list di database.");
   }
 }
 
@@ -176,7 +172,13 @@ export async function deleteList(id: string, boardId: string) {
 
 // --- CARD ACTIONS ---
 
-export async function createCard(listId: string, title: string, boardId: string) {
+export async function createCard(
+  listId: string, 
+  title: string, 
+  boardId: string, 
+  description?: string, 
+  deadline?: string
+) {
   try {
     const lastCard = await db.card.findFirst({
       where: { listId },
@@ -185,11 +187,19 @@ export async function createCard(listId: string, title: string, boardId: string)
     const newOrder = lastCard ? lastCard.order + 1 : 1;
 
     const card = await db.card.create({
-      data: { title, listId, order: newOrder },
+      data: { 
+        title, 
+        listId, 
+        order: newOrder,
+        description: description || "",
+        deadline: deadline || ""
+      },
     });
+
     revalidatePath(`/board/${boardId}`);
     return card;
-  } catch {
-    throw new Error("Failed to create card");
+  } catch (error) {
+    console.error("DB_ERROR:", error);
+    throw new Error("Gagal membuat card.");
   }
 }

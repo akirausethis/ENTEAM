@@ -2,19 +2,20 @@
 
 import { useState, useEffect } from "react";
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
-import { Plus, GripVertical, Trash2, X, MoreHorizontal, Calendar, AlignLeft } from "lucide-react";
+import { Plus, GripVertical, Trash2, X, Calendar, AlignLeft, MoreHorizontal } from "lucide-react";
 import { toast } from "sonner";
-import { createList, deleteList, updateListTitle, createCard } from "../_actions";
+import { createList, deleteList, createCard } from "../_actions"; // Pastikan path action benar
+import { List, Card } from "@prisma/client";
 
 interface CardItem {
   id: string;
   title: string;
-  description: string | null; // Ganti dari optional (?) atau undefined menjadi string | null
+  description: string | null;
   order: number;
   createdAt: Date;
   updatedAt: Date;
   listId: string;
-  deadline?: string; // Ini boleh tetap optional kalau tidak ada di skema Prisma
+  deadline?: string;
 }
 
 interface ListData {
@@ -28,17 +29,26 @@ interface ListData {
 }
 
 export const ListContainer = ({ boardId, data }: { boardId: string, data: ListData[] }) => {
+  // Inisialisasi state dari props
   const [orderedData, setOrderedData] = useState<ListData[]>(data);
+  
+  // State Form Card
   const [addingCardToListId, setAddingCardToListId] = useState<string | null>(null);
   const [newCardTitle, setNewCardTitle] = useState("");
   const [newCardDesc, setNewCardDesc] = useState("");
   const [newCardDate, setNewCardDate] = useState("");
 
-  useEffect(() => { setOrderedData(data); }, [data]);
+  // State Form List
+  const [isAddingList, setIsAddingList] = useState(false);
+  const [newListTitle, setNewListTitle] = useState("");
+
+  // Sinkronisasi data dari server ke state loca
 
   const onDragEnd = (result: DropResult) => {
     const { destination, source, type } = result;
     if (!destination) return;
+    if (destination.droppableId === source.droppableId && destination.index === source.index) return;
+
     const newOrderedData = [...orderedData];
     if (type === "list") {
       const [reorderedItem] = newOrderedData.splice(source.index, 1);
@@ -54,15 +64,27 @@ export const ListContainer = ({ boardId, data }: { boardId: string, data: ListDa
     }
   };
 
+  const onAddList = async () => {
+    if (!newListTitle.trim()) return;
+    try {
+      await createList(boardId, newListTitle);
+      setNewListTitle("");
+      setIsAddingList(false);
+      toast.success("List created! 🚀");
+    } catch (error) {
+      toast.error("Failed to create list");
+    }
+  };
+
   const onAddCard = async (listId: string) => {
     if (!newCardTitle.trim()) return;
     try {
-      await createCard(listId, newCardTitle, boardId);
+      await createCard(listId, newCardTitle, boardId, newCardDesc, newCardDate);
       setAddingCardToListId(null);
       setNewCardTitle("");
       setNewCardDesc("");
       setNewCardDate("");
-      toast.success("Card created!");
+      toast.success("Card created! ✨");
     } catch (error) {
       toast.error("Failed to add card");
     }
@@ -70,22 +92,17 @@ export const ListContainer = ({ boardId, data }: { boardId: string, data: ListDa
 
   return (
     <DragDropContext onDragEnd={onDragEnd}>
-      {/* TRICK UNTUK ICON KALENDER PUTIH & CUSTOM DATE PICKER */}
       <style jsx global>{`
-        ::-webkit-calendar-picker-indicator {
-          filter: invert(1);
-          cursor: pointer;
-          opacity: 0.7;
-        }
+        ::-webkit-calendar-picker-indicator { filter: invert(1); cursor: pointer; opacity: 0.7; }
         input[type="date"]::-webkit-inner-spin-button,
-        input[type="date"]::-webkit-clear-button {
-          display: none;
-        }
+        input[type="date"]::-webkit-clear-button { display: none; }
       `}</style>
 
       <Droppable droppableId="lists" type="list" direction="horizontal">
         {(provided) => (
-          <div {...provided.droppableProps} ref={provided.innerRef} className="flex gap-6 h-full items-start">
+          <div {...provided.droppableProps} ref={provided.innerRef} className="flex gap-6 h-full items-start pb-4">
+            
+            {/* RENDER LISTS */}
             {orderedData.map((list, index) => (
               <Draggable key={list.id} draggableId={list.id} index={index}>
                 {(provided, snapshot) => (
@@ -94,100 +111,100 @@ export const ListContainer = ({ boardId, data }: { boardId: string, data: ListDa
                     {...provided.draggableProps} 
                     className={`w-80 shrink-0 bg-zinc-900/60 border ${snapshot.isDragging ? 'border-indigo-500 shadow-2xl' : 'border-zinc-800'} rounded-[2.5rem] flex flex-col transition-all duration-300`}
                   >
-                    {/* LIST HEADER */}
+                    {/* HEADER LIST */}
                     <div {...provided.dragHandleProps} className="p-6 flex items-center justify-between group border-b border-zinc-800/50">
                       <div className="flex items-center gap-3">
                         <GripVertical className="w-4 h-4 text-zinc-700" />
-                        <div className="font-bold text-[11px] text-zinc-300 uppercase tracking-widest leading-none">
-                          {list.title}
-                        </div>
+                        <div className="font-bold text-[11px] text-zinc-300 uppercase tracking-widest italic">{list.title}</div>
                       </div>
                       <button onClick={() => deleteList(list.id, boardId)} className="opacity-0 group-hover:opacity-100 p-2 text-zinc-500 hover:text-red-400 transition-all">
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
 
-                    {/* CARDS AREA */}
+                    {/* CARDS LIST */}
                     <Droppable droppableId={list.id} type="card">
                       {(provided) => (
                         <div {...provided.droppableProps} ref={provided.innerRef} className="p-4 space-y-3 min-h-[20px]">
                           {list.cards?.map((card, cardIndex) => (
                             <Draggable key={card.id} draggableId={card.id} index={cardIndex}>
-                              {(provided) => (
-                                <div ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps} className="bg-zinc-800/40 border border-zinc-800 p-4 rounded-2xl flex flex-col gap-2">
-                                  <div className="flex items-center gap-3">
-                                    <input type="checkbox" className="w-4 h-4 rounded border-zinc-700 bg-zinc-900 text-indigo-600" />
-                                    <span className="text-sm text-zinc-300 font-medium leading-none">{card.title}</span>
+                              {(provided, snapshot) => (
+                                <div 
+                                  ref={provided.innerRef} 
+                                  {...provided.draggableProps} 
+                                  {...provided.dragHandleProps} 
+                                  className={`bg-zinc-800/40 border ${snapshot.isDragging ? 'border-indigo-500 bg-zinc-800' : 'border-zinc-800'} p-4 rounded-2xl flex flex-col gap-2 group/card transition-all`}
+                                >
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                      <input type="checkbox" className="w-4 h-4 rounded border-zinc-700 bg-zinc-900 text-indigo-600 focus:ring-0 cursor-pointer" />
+                                      <span className="text-sm text-zinc-200 font-bold leading-none">{card.title}</span>
+                                    </div>
+                                    <MoreHorizontal className="w-4 h-4 text-zinc-600 opacity-0 group-hover/card:opacity-100 transition-opacity" />
                                   </div>
+                                  {(card.description || card.deadline) && (
+                                    <div className="pl-7 space-y-1.5">
+                                      {card.deadline && (
+                                        <div className="flex items-center gap-1.5 text-[9px] text-indigo-400 font-black uppercase tracking-tighter">
+                                          <Calendar className="w-3 h-3" /> {card.deadline}
+                                        </div>
+                                      )}
+                                      {card.description && (
+                                        <p className="text-[10px] text-zinc-500 line-clamp-2 italic font-medium">{card.description}</p>
+                                      )}
+                                    </div>
+                                  )}
                                 </div>
                               )}
                             </Draggable>
                           ))}
                           {provided.placeholder}
 
-                          {/* FORM ADD CARD - COMPACT & ALIGNED VERSION */}
+                          {/* FORM ADD CARD */}
                           {addingCardToListId === list.id ? (
-                            <div className="space-y-3 p-4 bg-zinc-900/90 rounded-[2rem] border border-zinc-800 shadow-2xl animate-in fade-in zoom-in duration-200">
-                              
-                              {/* TITLE INPUT */}
+                            <div className="space-y-3 p-5 bg-zinc-900/90 rounded-[2rem] border border-zinc-800 shadow-2xl animate-in fade-in zoom-in duration-200">
                               <div className="space-y-1.5">
                                 <label className="text-[9px] uppercase tracking-[0.2em] font-black text-zinc-600 ml-1">Title</label>
                                 <input
                                   autoFocus
                                   placeholder="Task name..."
-                                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500/30 transition-all"
+                                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500/50 transition-all font-bold"
                                   value={newCardTitle}
                                   onChange={(e) => setNewCardTitle(e.target.value)}
                                 />
                               </div>
-
-                              {/* NOTES INPUT - CENTERED ALIGN */}
                               <div className="space-y-1.5">
                                 <label className="text-[9px] uppercase tracking-[0.2em] font-black text-zinc-600 ml-1">Notes</label>
-                                <div className="flex items-center gap-3 bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 focus-within:ring-1 focus-within:ring-indigo-500/30 transition-all">
-                                  <AlignLeft className="w-4 h-4 text-zinc-400 shrink-0" />
+                                <div className="flex items-center gap-3 bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 focus-within:border-indigo-500/50 transition-all">
+                                  <AlignLeft className="w-4 h-4 text-zinc-500" />
                                   <textarea 
                                     rows={1}
-                                    placeholder="Add description..." 
-                                    className="bg-transparent border-none text-[12px] text-zinc-300 focus:outline-none w-full resize-none py-0.5 leading-relaxed"
+                                    placeholder="Add notes..." 
+                                    className="bg-transparent border-none text-[11px] text-zinc-300 focus:outline-none w-full resize-none"
                                     value={newCardDesc}
                                     onChange={(e) => setNewCardDesc(e.target.value)}
                                   />
                                 </div>
                               </div>
-
-                              {/* DEADLINE INPUT - CENTERED ALIGN */}
                               <div className="space-y-1.5">
                                 <label className="text-[9px] uppercase tracking-[0.2em] font-black text-zinc-600 ml-1">Deadline</label>
-                                <div className="flex items-center gap-3 bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 focus-within:ring-1 focus-within:ring-indigo-500/30 transition-all">
-                                  <Calendar className="w-4 h-4 text-white opacity-80 shrink-0" />
+                                <div className="flex items-center gap-3 bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 focus-within:border-indigo-500/50 transition-all">
+                                  <Calendar className="w-4 h-4 text-white/70" />
                                   <input 
                                     type="date" 
-                                    className="bg-transparent border-none text-[12px] text-zinc-200 focus:outline-none w-full color-scheme-dark font-medium h-6"
+                                    className="bg-transparent border-none text-[11px] text-zinc-200 focus:outline-none w-full color-scheme-dark font-black h-6 uppercase"
                                     value={newCardDate}
                                     onChange={(e) => setNewCardDate(e.target.value)}
                                   />
                                 </div>
                               </div>
-
-                              {/* ACTIONS */}
-                              <div className="flex items-center gap-2 pt-1">
-                                <button 
-                                  onClick={() => onAddCard(list.id)} 
-                                  className="bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 shadow-lg shadow-indigo-500/10"
-                                >
-                                  Add Card
-                                </button>
-                                <button 
-                                  onClick={() => setAddingCardToListId(null)} 
-                                  className="p-1.5 text-zinc-500 hover:text-white transition-colors"
-                                >
-                                  <X className="w-4 h-4" />
-                                </button>
+                              <div className="flex items-center gap-2 pt-2">
+                                <button onClick={() => onAddCard(list.id)} className="bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-indigo-600/20">Add</button>
+                                <button onClick={() => setAddingCardToListId(null)} className="p-1.5 text-zinc-500 hover:text-white transition-colors"><X className="w-4 h-4" /></button>
                               </div>
                             </div>
                           ) : (
-                            <button onClick={() => setAddingCardToListId(list.id)} className="w-full p-3 flex items-center gap-2 text-xs font-bold text-zinc-600 hover:text-indigo-400 transition-all">
+                            <button onClick={() => setAddingCardToListId(list.id)} className="w-full p-3 flex items-center gap-2 text-xs font-black text-zinc-600 hover:text-indigo-400 transition-all uppercase tracking-tighter italic">
                               <Plus className="w-4 h-4" /> Add a card
                             </button>
                           )}
@@ -199,6 +216,33 @@ export const ListContainer = ({ boardId, data }: { boardId: string, data: ListDa
               </Draggable>
             ))}
             {provided.placeholder}
+
+            {/* FORM ADD LIST */}
+            {isAddingList ? (
+              <div className="w-80 shrink-0 bg-zinc-900 border border-zinc-800 p-6 rounded-[2.5rem] space-y-4 shadow-2xl">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest ml-1">List Title</label>
+                  <input 
+                    autoFocus
+                    value={newListTitle}
+                    onChange={(e) => setNewListTitle(e.target.value)}
+                    placeholder="e.g. Done..."
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-5 py-4 text-sm text-white focus:outline-none focus:border-indigo-500 transition-all font-bold"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <button onClick={onAddList} className="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white py-3 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all">Create</button>
+                  <button onClick={() => setIsAddingList(false)} className="p-3 text-zinc-500 hover:text-white transition-colors"><X className="w-5 h-5" /></button>
+                </div>
+              </div>
+            ) : (
+              <button 
+                onClick={() => setIsAddingList(true)}
+                className="w-80 shrink-0 bg-white/5 border border-dashed border-white/10 hover:bg-white/10 hover:border-white/20 p-8 rounded-[2.5rem] flex items-center justify-center gap-3 text-zinc-500 font-black text-sm transition-all italic tracking-tighter"
+              >
+                <Plus className="w-5 h-5" /> ADD ANOTHER LIST
+              </button>
+            )}
           </div>
         )}
       </Droppable>

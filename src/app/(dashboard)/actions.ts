@@ -133,21 +133,35 @@ export async function deleteBoardAction(id: string) {
 
 export async function createList(boardId: string, title: string) {
   try {
-    // Cari order terakhir biar list baru ada di paling kanan
+    // Debugging: Cek apakah boardId-nya masuk atau undefined
+    console.log("Mencoba membuat list untuk boardId:", boardId);
+
+    if (!boardId || !title) {
+      throw new Error("Board ID dan Title wajib ada!");
+    }
+
+    // 1. Hitung order terakhir
     const lastList = await db.list.findFirst({
-      where: { boardId },
+      where: { boardId: boardId },
       orderBy: { order: "desc" },
     });
+    
     const newOrder = lastList ? lastList.order + 1 : 1;
 
+    // 2. Insert ke Database
     const list = await db.list.create({
-      data: { title, boardId, order: newOrder },
+      data: {
+        title: title,
+        boardId: boardId,
+        order: newOrder,
+      },
     });
 
     revalidatePath(`/board/${boardId}`);
     return list;
   } catch (error) {
-    console.error("DB_ERROR:", error);
+    // LIHAT DI TERMINAL VS CODE KAMU, PASTI ADA DETAIL ERRORNYA DI SINI
+    console.error("DETAIL_ERROR_PRISMA:", error);
     throw new Error("Gagal membuat list di database.");
   }
 }
@@ -176,30 +190,31 @@ export async function createCard(
   listId: string, 
   title: string, 
   boardId: string, 
-  description?: string, 
-  deadline?: string
+  description?: string, // Parameter ke-4 (opsional)
+  deadline?: string    // Parameter ke-5 (opsional)
 ) {
   try {
     const lastCard = await db.card.findFirst({
       where: { listId },
       orderBy: { order: "desc" },
     });
+    
     const newOrder = lastCard ? lastCard.order + 1 : 1;
 
     const card = await db.card.create({
-      data: { 
-        title, 
-        listId, 
+      data: {
+        title,
+        listId,
         order: newOrder,
-        description: description || "",
-        deadline: deadline || ""
+        description: description || "", // Simpan deskripsi
+        deadline: deadline || "",       // Simpan tanggal
       },
     });
 
     revalidatePath(`/board/${boardId}`);
     return card;
   } catch (error) {
-    console.error("DB_ERROR:", error);
+    console.error("CREATE_CARD_ERROR:", error);
     throw new Error("Gagal membuat card.");
   }
 }

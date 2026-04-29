@@ -5,8 +5,12 @@ import Link from "next/link";
 import { ArrowLeft, Users, Settings, MoreHorizontal, Plus } from "lucide-react";
 import { BoardContent } from "@/components/board-content"; // Kamu perlu bikin file ini nanti
 
-export default async function BoardIdPage({ params }: { params: { boardId: string } }) {
-  const { boardId } = params;
+export default async function BoardIdPage({ 
+  params 
+}: { 
+  params: Promise<{ boardId: string }> // Tambahkan Promise di sini
+}) {
+  const { boardId } = await params;
   
   // 1. Cek User
   const cookieStore = await cookies();

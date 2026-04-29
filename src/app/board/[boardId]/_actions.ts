@@ -29,7 +29,7 @@ export async function updateListTitle(id: string, title: string, boardId: string
   revalidatePath(`/board/${boardId}`);
 }
 
-export async function createCard(listId: string, title: string, boardId: string) {
+export async function createCard(listId: string, title: string, boardId: string, newCardDesc: string, newCardDate: string) {
   const lastCard = await db.card.findFirst({
     where: { listId },
     orderBy: { order: "desc" },

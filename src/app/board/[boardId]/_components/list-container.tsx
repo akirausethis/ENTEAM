@@ -64,17 +64,20 @@ export const ListContainer = ({ boardId, data }: { boardId: string, data: ListDa
     }
   };
 
-  const onAddList = async () => {
-    if (!newListTitle.trim()) return;
-    try {
-      await createList(boardId, newListTitle);
-      setNewListTitle("");
-      setIsAddingList(false);
-      toast.success("List created! 🚀");
-    } catch (error) {
-      toast.error("Failed to create list");
-    }
-  };
+const onAddList = async () => {
+  if (!newListTitle.trim()) return;
+  
+  try {
+    console.log("Mengirim boardId:", boardId); // Cek di console browser
+    await createList(boardId, newListTitle); // PASTIKAN URUTANNYA (boardId dulu, baru title)
+    
+    setNewListTitle("");
+    setIsAddingList(false);
+    toast.success("List created!");
+  } catch (error) {
+    toast.error("Failed to create list");
+  }
+};
 
   const onAddCard = async (listId: string) => {
     if (!newCardTitle.trim()) return;

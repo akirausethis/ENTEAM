@@ -1,0 +1,10 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Kita set warna background dasar secara manual buat jaga-jaga */
+body {
+  background-color: #09090b !important; /* Zinc-950 */
+  color: #fafafa !important;
+  margin: 0;
+}

@@ -2,28 +2,39 @@ import { db } from "@/lib/db";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Users, Settings, MoreHorizontal, Plus } from "lucide-react";
-import { BoardContent } from "@/components/board-content"; // Kamu perlu bikin file ini nanti
+import { ArrowLeft, Users, Settings, MoreHorizontal } from "lucide-react";
+import { BoardContent } from "@/components/board-content";
+import { Prisma } from "@prisma/client";
+
+// Definisikan tipe data Board yang sudah include lists dan cards secara otomatis
+type BoardWithListsAndCards = Prisma.BoardGetPayload<{
+  include: {
+    lists: {
+      include: {
+        cards: true;
+      };
+    };
+  };
+}>;
 
 export default async function BoardIdPage({ 
   params 
 }: { 
-  params: Promise<{ boardId: string }> // Tambahkan Promise di sini
+  params: Promise<{ boardId: string }> 
 }) {
   const { boardId } = await params;
   
-  // 1. Cek User
   const cookieStore = await cookies();
   const userName = cookieStore.get("user_name")?.value;
   const user = await db.user.findFirst({ where: { name: userName } });
 
   if (!user) redirect("/sign-in");
 
-  // 2. Ambil Data Board + List + Card
+  // Ambil data dengan type safety
   const board = await db.board.findFirst({
     where: {
       id: boardId,
-      userId: user.id, // Safety: Biar gak bisa intip board orang lewat URL
+      userId: user.id,
     },
     include: {
       lists: {
@@ -33,16 +44,14 @@ export default async function BoardIdPage({
         },
       },
     },
-  });
+  }) as BoardWithListsAndCards;
 
   if (!board) redirect("/dashboard");
 
   return (
     <div className="h-full flex flex-col bg-zinc-950">
-      {/* HEADER BOARD */}
       <div className="flex items-center justify-between p-6 border-b border-zinc-900">
         <div className="flex items-center gap-4">
-          {/* FIX TOMBOL BACK: Arahkan ke /dashboard */}
           <Link 
             href="/dashboard" 
             className="w-10 h-10 bg-zinc-900 rounded-xl flex items-center justify-center border border-zinc-800 hover:bg-zinc-800 transition-all"
@@ -77,9 +86,8 @@ export default async function BoardIdPage({
         </div>
       </div>
 
-      {/* CONTENT AREA (Kanban Board) */}
       <div className="flex-1 overflow-x-auto p-6">
-        {/* Oper data lists ke Client Component agar bisa Drag & Drop */}
+        {/* Sekarang data dikirim dengan tipe yang jelas, bukan any lagi */}
         <BoardContent boardId={boardId} initialData={board.lists} />
       </div>
     </div>

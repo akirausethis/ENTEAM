@@ -8,10 +8,14 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  password  String
-  name      String?
+id              String   @id @default(uuid())
+  name            String   @unique
+  email           String   @unique
+  password        String
+  displayName     String?  // Tambahkan tanda tanya biar opsional
+  bio             String?  // Tambahkan tanda tanya biar opsional
+  twoFactorEnabled Boolean  @default(false)
+  twoFactorCode   String?  // Tambahkan tanda tanya biar opsional
   boards    Board[]  
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

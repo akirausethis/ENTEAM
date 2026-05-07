@@ -45,9 +45,12 @@ model List {
 model Card {
   id          String   @id @default(uuid())
   title       String
-  description String?  // Tambahkan ini (opsional)
-  deadline    String?  // Tambahkan ini (opsional)
+  description String?
   order       Int
+  deadline    String?
+  // Tambahkan dua field ini
+  priority    String   @default("MEDIUM") // LOW, MEDIUM, HIGH
+  isCompleted Boolean  @default(false)
   listId      String
   list        List     @relation(fields: [listId], references: [id], onDelete: Cascade)
   createdAt   DateTime @default(now())

@@ -3,51 +3,109 @@
 import { db } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 
-export async function createList(boardId: string, title: string) {
-  const lastList = await db.list.findFirst({
-    where: { boardId },
-    orderBy: { order: "desc" },
-  });
-  const newOrder = lastList ? lastList.order + 1 : 1;
-
-  await db.list.create({
-    data: { title, boardId, order: newOrder }
-  });
-  revalidatePath(`/board/${boardId}`);
-}
-
-export async function deleteList(id: string, boardId: string) {
-  await db.list.delete({ where: { id } });
-  revalidatePath(`/board/${boardId}`);
-}
-
-export async function updateListTitle(id: string, title: string, boardId: string) {
-  await db.list.update({
-    where: { id },
-    data: { title }
-  });
-  revalidatePath(`/board/${boardId}`);
-}
-
-export async function createCard(listId: string, title: string, boardId: string, newCardDesc: string, newCardDate: string) {
-  const lastCard = await db.card.findFirst({
-    where: { listId },
-    orderBy: { order: "desc" },
-  });
-  const newOrder = lastCard ? lastCard.order + 1 : 1;
-
-  await db.card.create({
-    data: { title, listId, order: newOrder }
-  });
-  revalidatePath(`/board/${boardId}`);
-}
-
+/**
+ * BOARD ACTIONS
+ */
 export async function deleteBoardAction(id: string) {
   try {
     await db.board.delete({
-      where: { id }
+      where: { id },
     });
-    revalidatePath("/");
+
+    revalidatePath("/dashboard");
+    return { success: true };
   } catch (error) {
-    throw new Error("Failed to delete board");
-  }}
+    console.error("DELETE_BOARD_ERROR:", error);
+    return { error: "Failed to delete board" };
+  }
+}
+
+/**
+ * LIST ACTIONS
+ */
+export async function createList(boardId: string, title: string) {
+  try {
+    if (!boardId || !title) throw new Error("Board ID dan Title wajib ada!");
+
+    const lastList = await db.list.findFirst({
+      where: { boardId: boardId },
+      orderBy: { order: "desc" },
+    });
+    
+    const newOrder = lastList ? lastList.order + 1 : 1;
+
+    const list = await db.list.create({
+      data: {
+        title: title,
+        boardId: boardId,
+        order: newOrder,
+      },
+    });
+
+    revalidatePath(`/board/${boardId}`);
+    return list;
+  } catch (error) {
+    console.error("CREATE_LIST_ERROR:", error);
+    throw new Error("Gagal membuat list.");
+  }
+}
+
+export async function deleteList(id: string, boardId: string) {
+  try {
+    await db.list.delete({ where: { id } });
+    revalidatePath(`/board/${boardId}`);
+    return { success: true };
+  } catch (error) {
+    console.error("DELETE_LIST_ERROR:", error);
+    throw new Error("Failed to delete list");
+  }
+}
+
+/**
+ * CARD ACTIONS
+ * Format Object Destructuring agar sinkron dengan Frontend
+ */
+export async function createCard({
+  listId,
+  title,
+  boardId,
+  description,
+  deadline,
+  priority = "MEDIUM"
+}: {
+  listId: string;
+  title: string;
+  boardId: string;
+  description?: string;
+  deadline?: string;
+  priority?: string;
+}) {
+  try {
+    const lastCard = await db.card.findFirst({
+      where: { listId },
+      orderBy: { order: "desc" },
+    });
+    
+    const nextOrder = lastCard ? lastCard.order + 1 : 1;
+
+    const card = await db.card.create({
+      data: {
+        title,
+        listId,
+        order: nextOrder,
+        description: description || "", 
+        deadline: deadline || "", 
+        priority: priority,
+        isCompleted: false, 
+      },
+    });
+
+    revalidatePath(`/board/${boardId}`);
+    revalidatePath("/tasks"); 
+    
+    return card;
+  } catch (error) {
+    console.error("CREATE_CARD_ERROR:", error);
+    throw new Error("Gagal membuat card.");
+  }
+}

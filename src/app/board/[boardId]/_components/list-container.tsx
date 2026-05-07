@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
 import { Plus, GripVertical, Trash2, X, Calendar, AlignLeft, MoreHorizontal } from "lucide-react";
 import { toast } from "sonner";
-import { createList, deleteList, createCard } from "../_actions"; // Pastikan path action benar
+import { createList, deleteList, createCard } from "../_actions"; 
 import { List, Card } from "@prisma/client";
 
 interface CardItem {
@@ -42,8 +42,6 @@ export const ListContainer = ({ boardId, data }: { boardId: string, data: ListDa
   const [isAddingList, setIsAddingList] = useState(false);
   const [newListTitle, setNewListTitle] = useState("");
 
-  // Sinkronisasi data dari server ke state loca
-
   const onDragEnd = (result: DropResult) => {
     const { destination, source, type } = result;
     if (!destination) return;
@@ -64,31 +62,43 @@ export const ListContainer = ({ boardId, data }: { boardId: string, data: ListDa
     }
   };
 
-const onAddList = async () => {
-  if (!newListTitle.trim()) return;
-  
-  try {
-    console.log("Mengirim boardId:", boardId); // Cek di console browser
-    await createList(boardId, newListTitle); // PASTIKAN URUTANNYA (boardId dulu, baru title)
+  const onAddList = async () => {
+    if (!newListTitle.trim()) return;
     
-    setNewListTitle("");
-    setIsAddingList(false);
-    toast.success("List created!");
-  } catch (error) {
-    toast.error("Failed to create list");
-  }
-};
+    try {
+      await createList(boardId, newListTitle); 
+      setNewListTitle("");
+      setIsAddingList(false);
+      toast.success("List created!");
+    } catch (error) {
+      toast.error("Failed to create list");
+    }
+  };
 
+  /**
+   * FIX: Fungsi onAddCard diperbarui menggunakan Object Destructuring
+   * Mencegah error 'Argument title is missing'
+   */
   const onAddCard = async (listId: string) => {
     if (!newCardTitle.trim()) return;
+    
     try {
-      await createCard(listId, newCardTitle, boardId, newCardDesc, newCardDate);
+      await createCard({
+        listId: listId,
+        title: newCardTitle,
+        boardId: boardId,
+        description: newCardDesc,
+        deadline: newCardDate,
+        priority: "MEDIUM"
+      });
+
       setAddingCardToListId(null);
       setNewCardTitle("");
       setNewCardDesc("");
       setNewCardDate("");
       toast.success("Card created! ✨");
     } catch (error) {
+      console.error(error);
       toast.error("Failed to add card");
     }
   };
@@ -105,7 +115,6 @@ const onAddList = async () => {
         {(provided) => (
           <div {...provided.droppableProps} ref={provided.innerRef} className="flex gap-6 h-full items-start pb-4">
             
-            {/* RENDER LISTS */}
             {orderedData.map((list, index) => (
               <Draggable key={list.id} draggableId={list.id} index={index}>
                 {(provided, snapshot) => (

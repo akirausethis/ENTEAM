@@ -109,3 +109,28 @@ export async function createCard({
     throw new Error("Gagal membuat card.");
   }
 }
+
+export async function inviteMemberAction(boardId: string, email: string) {
+  try {
+    const userToInvite = await db.user.findUnique({ where: { email } });
+    if (!userToInvite) return { error: "User dengan email ini tidak ditemukan!" };
+
+    const existingMember = await db.boardMember.findFirst({
+      where: { boardId, userId: userToInvite.id }
+    });
+    if (existingMember) return { error: "User ini sudah jadi member, Ngab!" };
+
+    await db.boardMember.create({
+      data: {
+        boardId,
+        userId: userToInvite.id,
+        role: "MEMBER"
+      }
+    });
+
+    revalidatePath(`/board/${boardId}`);
+    return { success: true };
+  } catch (error) {
+    return { error: "Gagal invite member." };
+  }
+}

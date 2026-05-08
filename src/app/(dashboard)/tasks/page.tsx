@@ -3,13 +3,10 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import TasksTable from "./_components/tasks-table";
 
-/**
- * Interface manual untuk Card - Pastikan 'description' ada di sini
- */
 interface ExtendedCard {
   id: string;
   title: string;
-  description: string | null; // Tambahkan ini agar sinkron dengan DB
+  description: string | null;
   deadline: string | null;
   isCompleted: boolean;
   priority: string;
@@ -17,6 +14,7 @@ interface ExtendedCard {
     title: string;
     board: {
       title: string;
+      userId: string;
       user: {
         name: string;
         displayName: string | null;
@@ -25,9 +23,6 @@ interface ExtendedCard {
   };
 }
 
-/**
- * Logic Dynamic Priority
- */
 function getDynamicPriority(deadlineStr: string | null): string {
   if (!deadlineStr || deadlineStr === "No Deadline") return "LOW";
   try {
@@ -36,7 +31,7 @@ function getDynamicPriority(deadlineStr: string | null): string {
     const diffInTime = deadline.getTime() - now.getTime();
     const diffInDays = Math.ceil(diffInTime / (1000 * 3600 * 24));
 
-    if (diffInDays <= 0) return "URGENT"; 
+    if (diffInDays <= 0) return "URGENT";
     if (diffInDays <= 3) return "HIGH";
     if (diffInDays <= 7) return "MEDIUM";
     return "LOW";
@@ -50,22 +45,33 @@ export default async function TasksPage() {
   const userName = cookieStore.get("user_name")?.value;
 
   const user = await db.user.findFirst({ where: { name: userName } });
-  if (!user) redirect("/sign-in");
+
+  if (!user) {
+    redirect("/sign-in");
+  }
 
   const tasks = await db.card.findMany({
     where: {
-      list: { board: { userId: user.id } },
+      list: {
+        board: {
+          userId: user.id,
+        },
+      },
     },
     include: {
       list: {
         include: {
           board: {
-            include: { user: true }
+            include: {
+              user: true,
+            },
           },
         },
       },
     },
-    orderBy: { createdAt: "desc" },
+    orderBy: {
+      createdAt: "desc",
+    },
   });
 
   const formattedTasks = tasks.map((task) => {
@@ -75,7 +81,7 @@ export default async function TasksPage() {
     return {
       id: safeTask.id,
       title: safeTask.title,
-      description: safeTask.description || "", // SOLUSI: Kirim deskripsi ke TasksTable
+      description: safeTask.description || "",
       workspace: safeTask.list.board.title,
       status: safeTask.isCompleted ? "COMPLETED" : "ON-GOING",
       deadline: safeTask.deadline || "No Deadline",
@@ -87,11 +93,17 @@ export default async function TasksPage() {
   return (
     <div className="p-8 sm:p-12 max-w-7xl mx-auto min-h-screen">
       <header className="mb-10">
-        {/* ... Header UI Code ... */}
-        <h1 className="text-5xl font-black text-white tracking-tighter italic uppercase">Team Tasks</h1>
+        <div className="flex items-center gap-2 text-indigo-500 font-bold text-xs uppercase tracking-[0.3em] mb-2">
+          <div className="w-4 h-4 rounded-full border-2 border-indigo-500 flex items-center justify-center">
+            <div className="w-1 h-1 bg-indigo-500 rounded-full" />
+          </div>
+          Personal Workspace
+        </div>
+        <h1 className="text-5xl font-black text-white tracking-tighter italic uppercase">
+          My Tasks
+        </h1>
       </header>
 
-      {/* Sekarang TS tidak akan marah karena 'description' sudah ada */}
       <TasksTable initialTasks={formattedTasks} />
     </div>
   );

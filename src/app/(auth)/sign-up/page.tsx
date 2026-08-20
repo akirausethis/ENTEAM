@@ -4,6 +4,7 @@ import { signUpAction } from "../actions";
 import Swal from "sweetalert2";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { Zap, ArrowRight } from "lucide-react";
 
 export default function SignUpPage() {
   const router = useRouter();
@@ -12,49 +13,98 @@ export default function SignUpPage() {
     const result = await signUpAction(formData);
 
     if (result?.error) {
-      Swal.fire({ icon: 'error', title: 'Waduh!', text: result.error, background: '#18181b', color: '#fff' });
+      Swal.fire({
+        icon: 'error',
+        title: 'Sign Up Failed',
+        text: result.error,
+        background: '#ffffff',
+        color: '#000000',
+        confirmButtonColor: '#000000',
+        customClass: {
+          popup: 'border-2 border-black rounded-none shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]'
+        }
+      });
     } else {
       Swal.fire({
         icon: 'success',
-        title: 'BERHASIL!',
-        text: 'Akun kamu sudah aktif, gas ke Dashboard!',
-        background: '#18181b',
-        color: '#fff',
-        confirmButtonColor: '#4f46e5'
-      }).then(() => {
-        router.push("/dashboard");
+        title: 'Success!',
+        text: 'Your account has been created. You will be redirected to the Dashboard.',
+        background: '#ffffff',
+        color: '#000000',
+        confirmButtonColor: '#000000',
+        timer: 2000,
+        showConfirmButton: false,
+        customClass: {
+          popup: 'border-2 border-black rounded-none shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]'
+        }
       });
+
+      setTimeout(() => {
+        router.push("/dashboard");
+      }, 1500);
     }
   }
 
   return (
-    <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-6">
-      <form action={handleSubmit} className="w-full max-w-md bg-zinc-900 border border-zinc-800 p-10 rounded-[32px] space-y-6">
-        <h2 className="text-3xl font-black text-white text-center">Create Account</h2>
+    <div className="min-h-screen bg-white dark:bg-black flex items-center justify-center p-6 relative">
+      <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px] pointer-events-none" />
+      
+      <div className="w-full max-w-sm space-y-6 bg-white dark:bg-black border border-black/10 dark:border-white/10 p-8 rounded-xl shadow-xl relative z-10">
+        <div className="text-center">
+          <div className="w-12 h-12 bg-black dark:bg-white rounded-lg flex items-center justify-center mx-auto mb-6 shadow-sm">
+            <Zap className="w-6 h-6 text-white dark:text-black fill-current" />
+          </div>
+          <h2 className="text-2xl font-black tracking-tighter">Create Account</h2>
+          <p className="text-zinc-500 text-sm mt-2 font-medium">Join EnTeam to manage your projects</p>
+        </div>
         
-        <div className="space-y-2">
-          <label className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Full Name</label>
-          <input name="name" type="text" className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-5 py-4 text-white focus:border-indigo-500 outline-none" placeholder="Sawit Pro" />
-        </div>
+        <form action={handleSubmit} className="space-y-4 mt-8">
+          <div className="space-y-2">
+            <label className="text-[11px] font-bold text-zinc-500 uppercase tracking-widest">Full Name</label>
+            <input 
+              name="name" 
+              type="text" 
+              required
+              className="w-full bg-transparent border border-black/20 dark:border-white/20 rounded-md px-4 py-3 focus:outline-none focus:border-black dark:focus:border-white transition-all text-sm font-medium" 
+              placeholder="John Doe" 
+            />
+          </div>
 
-        <div className="space-y-2">
-          <label className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Email</label>
-          <input name="email" type="email" className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-5 py-4 text-white focus:border-indigo-500 outline-none" placeholder="ngab@enteam.com" />
-        </div>
+          <div className="space-y-2">
+            <label className="text-[11px] font-bold text-zinc-500 uppercase tracking-widest">Email Address</label>
+            <input 
+              name="email" 
+              type="email" 
+              required
+              className="w-full bg-transparent border border-black/20 dark:border-white/20 rounded-md px-4 py-3 focus:outline-none focus:border-black dark:focus:border-white transition-all text-sm font-medium" 
+              placeholder="name@company.com" 
+            />
+          </div>
 
-        <div className="space-y-2">
-          <label className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Password</label>
-          <input name="password" type="password" className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-5 py-4 text-white focus:border-indigo-500 outline-none" placeholder="••••••••" />
-        </div>
+          <div className="space-y-2">
+            <label className="text-[11px] font-bold text-zinc-500 uppercase tracking-widest">Password</label>
+            <input 
+              name="password" 
+              type="password" 
+              required
+              className="w-full bg-transparent border border-black/20 dark:border-white/20 rounded-md px-4 py-3 focus:outline-none focus:border-black dark:focus:border-white transition-all text-sm font-medium" 
+              placeholder="••••••••" 
+            />
+          </div>
 
-        <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-black py-4 rounded-2xl transition-all shadow-lg shadow-indigo-600/20">
-          Sign Up Now
-        </button>
+          <button 
+            type="submit" 
+            className="w-full bg-black dark:bg-white text-white dark:text-black font-bold py-3.5 rounded-md transition-all flex items-center justify-center gap-2 group mt-6 active:scale-95"
+          >
+            Sign Up Now
+            <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+          </button>
+        </form>
 
-        <p className="text-center text-zinc-500 text-sm">
-          Sudah punya akun? <Link href="/sign-in" className="text-indigo-400 font-bold">Sign In</Link>
+        <p className="text-center text-zinc-500 text-sm font-medium pt-4">
+          Already have an account? <Link href="/sign-in" className="text-black dark:text-white font-bold hover:underline">Sign In</Link>
         </p>
-      </form>
+      </div>
     </div>
   );
 }

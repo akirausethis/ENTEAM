@@ -10,12 +10,12 @@ import bcrypt from "bcrypt"; // WAJIB: Untuk ganti password
  */
 async function getSessionUser() {
   const cookieStore = await cookies();
-  const userName = cookieStore.get("user_name")?.value;
+  const userId = cookieStore.get("user_id")?.value;
   
-  if (!userName) return null;
+  if (!userId) return null;
 
-  return await db.user.findFirst({
-    where: { name: userName },
+  return await db.user.findUnique({
+    where: { id: userId },
   });
 }
 
@@ -46,7 +46,7 @@ export async function updateProfileAction(formData: {
     });
 
     const cookieStore = await cookies();
-    cookieStore.set("user_name", updatedUser.name, {
+    cookieStore.set("user_id", updatedUser.id, {
       path: "/",
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
@@ -62,7 +62,7 @@ export async function updateProfileAction(formData: {
     console.error("UPDATE_PROFILE_ERROR:", error);
     const prismaError = error as { code?: string };
     if (prismaError.code === 'P2002') {
-      return { error: "Email sudah digunakan orang lain Ngab!" };
+      return { error: "Email is already in use by another account." };
     }
     return { error: "Gagal memperbarui profil." };
   }
@@ -77,11 +77,11 @@ export async function updatePasswordAction(formData: {
 }) {
   try {
     const user = await getSessionUser();
-    if (!user) return { error: "Session expired, login lagi Ngab!" };
+    if (!user) return { error: "Session expired. Please log in again." };
 
     // 1. Validasi Password Lama dengan bcrypt.compare
     const isMatch = await bcrypt.compare(formData.currentPass, user.password); 
-    if (!isMatch) return { error: "Password lama kamu salah!" };
+    if (!isMatch) return { error: "Incorrect current password." };
 
     // 2. Hash Password Baru sebelum disimpan
     const hashedNewPassword = await bcrypt.hash(formData.newPass, 10);
@@ -140,7 +140,7 @@ export async function verify2FACodeAction(email: string, inputCode: string) {
 export async function createBoardAction(title: string) {
   try {
     const user = await getSessionUser();
-    if (!user) return { error: "Login dulu Ngab!" };
+    if (!user) return { error: "Please log in to perform this action." };
     const board = await db.board.create({ data: { title, userId: user.id } });
     revalidatePath("/dashboard");
     return { success: true, id: board.id }; 
@@ -219,43 +219,86 @@ export async function createCard(
     throw new Error("Gagal membuat card.");
   }
 }
-/**
- * AI ASSISTANT ACTION
- */
-export async function createCardByAI(prompt: string) {
+
+export async function updateListOrder(boardId: string, lists: { id: string, order: number }[]) {
+  try {
+    const transaction = lists.map((list) => 
+      db.list.update({
+        where: { id: list.id },
+        data: { order: list.order },
+      })
+    );
+    await db.$transaction(transaction);
+    revalidatePath(`/board/${boardId}`);
+    return { success: true };
+  } catch (error) {
+    return { error: "Failed to update list order" };
+  }
+}
+
+export async function updateCardOrder(boardId: string, cards: { id: string, order: number, listId: string }[]) {
+  try {
+    const transaction = cards.map((card) => 
+      db.card.update({
+        where: { id: card.id },
+        data: { order: card.order, listId: card.listId },
+      })
+    );
+    await db.$transaction(transaction);
+    revalidatePath(`/board/${boardId}`);
+    return { success: true };
+  } catch (error) {
+    return { error: "Failed to update card order" };
+  }
+}
+
+export async function inviteMember(email: string, boardId: string) {
   try {
     const user = await getSessionUser();
-    if (!user) return { success: false, message: "Login dulu!" };
+    if (!user) return { success: false, message: "Unauthorized" };
 
-    const API_KEY = process.env.GEMINI_API_KEY;
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: `Extract JSON: {"taskTitle": "...", "workspaceName": "..."} from: ${prompt}` }] }],
-        }),
-      }
-    );
+    // Find the invited user
+    const invitedUser = await db.user.findUnique({ where: { email } });
+    if (!invitedUser) return { success: false, message: "User with this email not found." };
 
-    const data = await response.json();
-    const responseText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    const jsonMatch = responseText?.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) return { success: false, message: "AI bingung." };
+    // Prevent inviting yourself
+    if (invitedUser.id === user.id) return { success: false, message: "You cannot invite yourself." };
 
-    const { taskTitle, workspaceName } = JSON.parse(jsonMatch[0]);
-    const allBoards = await db.board.findMany({ where: { userId: user.id }, include: { lists: { take: 1 } } });
-    const targetBoard = allBoards.find(b => workspaceName && b.title.toLowerCase().includes(workspaceName.toLowerCase())) || allBoards[0];
-    const targetList = targetBoard?.lists[0];
+    // Check if the board belongs to the current user
+    const board = await db.board.findUnique({ where: { id: boardId } });
+    if (!board || board.userId !== user.id) {
+      return { success: false, message: "Board not found or you don't have permission." };
+    }
 
-    if (!targetList) return { success: false, message: "Workspace/Kolom tidak ketemu." };
+    // Check if already a member
+    const existingMembership = await db.boardMember.findUnique({
+      where: {
+        boardId_userId: {
+          boardId: board.id,
+          userId: invitedUser.id,
+        },
+      },
+    });
 
-    await createCard(targetList.id, taskTitle, targetBoard.id, "Created by Gemini AI ✨");
-    revalidatePath("/dashboard");
-    revalidatePath(`/board/${targetBoard.id}`);
-    return { success: true, message: `Anjay! "${taskTitle}" masuk ke "${targetBoard.title}".` };
+    if (existingMembership) {
+      return { success: false, message: "User is already a member of this workspace." };
+    }
+
+    // Create membership
+    await db.boardMember.create({
+      data: {
+        boardId: board.id,
+        userId: invitedUser.id,
+        role: "Member",
+      },
+    });
+
+    revalidatePath("/members");
+    revalidatePath(`/board/${board.id}`);
+    
+    return { success: true, message: `Successfully invited ${invitedUser.displayName || invitedUser.name}.` };
   } catch (error) {
-    return { success: false, message: "Terjadi kesalahan pada AI." };
+    console.error("INVITE_MEMBER_ERROR:", error);
+    return { success: false, message: "Failed to invite member." };
   }
 }

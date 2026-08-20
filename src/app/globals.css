@@ -2,9 +2,35 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Kita set warna background dasar secara manual buat jaga-jaga */
+@layer base {
+  :root {
+    --background: #ffffff;
+    --foreground: #09090b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --background: #000000;
+      --foreground: #fafafa;
+    }
+  }
+}
+
 body {
-  background-color: #09090b !important; /* Zinc-950 */
-  color: #fafafa !important;
+  background-color: var(--background);
+  color: var(--foreground);
   margin: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::selection {
+  background-color: #000000;
+  color: #ffffff;
+}
+
+@media (prefers-color-scheme: dark) {
+  ::selection {
+    background-color: #ffffff;
+    color: #000000;
+  }
 }

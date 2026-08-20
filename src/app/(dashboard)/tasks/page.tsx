@@ -42,9 +42,9 @@ function getDynamicPriority(deadlineStr: string | null): string {
 
 export default async function TasksPage() {
   const cookieStore = await cookies();
-  const userName = cookieStore.get("user_name")?.value;
+  const userId = cookieStore.get("user_id")?.value;
 
-  const user = await db.user.findFirst({ where: { name: userName } });
+  const user = await db.user.findUnique({ where: { id: userId || "" } });
 
   if (!user) {
     redirect("/sign-in");
@@ -74,7 +74,7 @@ export default async function TasksPage() {
     },
   });
 
-  const formattedTasks = tasks.map((task) => {
+  const formattedTasks = tasks.map((task: any) => {
     const safeTask = task as unknown as ExtendedCard;
     const dynamicPriority = getDynamicPriority(safeTask.deadline);
 
@@ -91,15 +91,15 @@ export default async function TasksPage() {
   });
 
   return (
-    <div className="p-8 sm:p-12 max-w-7xl mx-auto min-h-screen">
-      <header className="mb-10">
-        <div className="flex items-center gap-2 text-indigo-500 font-bold text-xs uppercase tracking-[0.3em] mb-2">
-          <div className="w-4 h-4 rounded-full border-2 border-indigo-500 flex items-center justify-center">
-            <div className="w-1 h-1 bg-indigo-500 rounded-full" />
+    <div className="p-8 sm:p-12 max-w-7xl mx-auto min-h-screen text-black dark:text-white font-sans antialiased">
+      <header className="mb-10 border-b border-black/10 dark:border-white/10 pb-8">
+        <div className="flex items-center gap-2 font-bold text-xs uppercase tracking-widest text-zinc-500 mb-2">
+          <div className="w-4 h-4 rounded-full border-2 border-black/20 dark:border-white/20 flex items-center justify-center">
+            <div className="w-1 h-1 bg-black/50 dark:bg-white/50 rounded-full" />
           </div>
           Personal Workspace
         </div>
-        <h1 className="text-5xl font-black text-white tracking-tighter italic uppercase">
+        <h1 className="text-5xl font-black tracking-tighter">
           My Tasks
         </h1>
       </header>

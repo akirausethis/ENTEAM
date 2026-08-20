@@ -25,7 +25,7 @@ export async function deleteBoardAction(id: string) {
  */
 export async function createList(boardId: string, title: string) {
   try {
-    if (!boardId || !title) throw new Error("Board ID dan Title wajib ada!");
+    if (!boardId || !title) throw new Error("Board ID and Title are required!");
 
     const lastList = await db.list.findFirst({
       where: { boardId: boardId },
@@ -46,7 +46,7 @@ export async function createList(boardId: string, title: string) {
     return list;
   } catch (error) {
     console.error("CREATE_LIST_ERROR:", error);
-    throw new Error("Gagal membuat list.");
+    throw new Error("Failed to create list.");
   }
 }
 
@@ -106,19 +106,19 @@ export async function createCard({
     return card;
   } catch (error) {
     console.error("CREATE_CARD_ERROR:", error);
-    throw new Error("Gagal membuat card.");
+    throw new Error("Failed to create card.");
   }
 }
 
 export async function inviteMemberAction(boardId: string, email: string) {
   try {
     const userToInvite = await db.user.findUnique({ where: { email } });
-    if (!userToInvite) return { error: "User dengan email ini tidak ditemukan!" };
+    if (!userToInvite) return { error: "User with this email not found." };
 
     const existingMember = await db.boardMember.findFirst({
       where: { boardId, userId: userToInvite.id }
     });
-    if (existingMember) return { error: "User ini sudah jadi member, Ngab!" };
+    if (existingMember) return { error: "This user is already a member." };
 
     await db.boardMember.create({
       data: {
@@ -131,6 +131,6 @@ export async function inviteMemberAction(boardId: string, email: string) {
     revalidatePath(`/board/${boardId}`);
     return { success: true };
   } catch (error) {
-    return { error: "Gagal invite member." };
+    return { error: "Failed to invite member." };
   }
 }

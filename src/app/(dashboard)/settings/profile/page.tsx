@@ -5,15 +5,13 @@ import { Settings as SettingsIcon, User, Lock, Bell, Palette } from "lucide-reac
 import ProfileFormClient from "./_components/profile-form-client";
 import { Prisma } from "@prisma/client";
 
-// SOLUSI: Hapus argumen {} pada UserGetPayload agar tidak kena error no-empty-object-type
-type UserWithProfile = Prisma.UserGetPayload<object>;
 
 export default async function ProfileSettingsPage() {
   const cookieStore = await cookies();
-  const userName = cookieStore.get("user_name")?.value;
+  const userId = cookieStore.get("user_id")?.value;
 
-  const user = await db.user.findFirst({
-    where: { name: userName },
+  const user = await db.user.findUnique({
+    where: { id: userId || "" },
   });
 
   if (!user) redirect("/sign-in");

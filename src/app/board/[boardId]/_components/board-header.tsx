@@ -41,7 +41,7 @@ export const BoardHeader = ({ board }: BoardHeaderProps) => {
     try {
       const res = await inviteMemberAction(board.id, email);
       if (res?.success) {
-        toast.success("User invited successfully! 🚀");
+        toast.success("User invited successfully!");
         setEmail("");
         setIsInviting(false);
       } else {
@@ -55,28 +55,28 @@ export const BoardHeader = ({ board }: BoardHeaderProps) => {
   };
 
   return (
-    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 bg-zinc-900/40 p-6 rounded-[2.5rem] border border-zinc-800 backdrop-blur-md">
-      <div className="flex items-center gap-6">
+    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 bg-white dark:bg-black p-4 sm:p-6 rounded-xl border border-black/10 dark:border-white/10 shadow-sm">
+      <div className="flex items-center gap-4 sm:gap-6">
         <button 
           onClick={() => window.history.back()}
-          className="p-3 bg-zinc-800/80 rounded-2xl hover:bg-zinc-700 hover:scale-105 transition-all border border-zinc-700/30 group"
+          className="p-2.5 sm:p-3 bg-zinc-100 dark:bg-zinc-900 rounded-md hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors border border-black/5 dark:border-white/5"
         >
-          <ChevronLeft className="w-5 h-5 text-white group-hover:-translate-x-0.5 transition-transform" />
+          <ChevronLeft className="w-5 h-5 text-black dark:text-white" />
         </button>
         
         <div>
-          <h1 className="text-3xl font-black text-white italic uppercase tracking-tighter leading-none">
+          <h1 className="text-2xl sm:text-3xl font-black text-black dark:text-white uppercase tracking-tighter leading-none truncate max-w-[200px] sm:max-w-none">
             {board.title}
           </h1>
           <div className="flex items-center gap-3 mt-2">
             <div className="flex items-center gap-1.5">
-              <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-pulse" />
-              <span className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em]">
+              <div className="w-1.5 h-1.5 bg-black/50 dark:bg-white/50 rounded-full" />
+              <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
                 UPDATED {formatTimeAgo(board.updatedAt)}
               </span>
             </div>
-            <div className="w-1 h-1 bg-zinc-800 rounded-full" />
-            <span className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.2em] bg-indigo-500/5 px-2 py-0.5 rounded-md border border-indigo-500/10">
+            <div className="w-1 h-1 bg-black/20 dark:bg-white/20 rounded-full" />
+            <span className="text-[10px] font-bold text-black dark:text-white uppercase tracking-widest bg-zinc-100 dark:bg-zinc-900 px-2 py-0.5 rounded-sm border border-black/10 dark:border-white/10">
               {board._count.members + 1} MEMBERS
             </span>
           </div>
@@ -93,35 +93,35 @@ export const BoardHeader = ({ board }: BoardHeaderProps) => {
                 onChange={(e) => setEmail(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && onInvite()}
                 placeholder="Enter email address..."
-                className="bg-zinc-950 border border-zinc-800 rounded-2xl px-5 py-2.5 text-xs text-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 transition-all w-[200px] sm:w-[250px] font-bold"
+                className="bg-transparent border border-black/20 dark:border-white/20 rounded-md px-4 py-2.5 text-sm focus:outline-none focus:border-black dark:focus:border-white transition-all w-[200px] sm:w-[250px] font-medium"
               />
             </div>
             <button 
               disabled={isLoading}
               onClick={onInvite} 
-              className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 p-2.5 rounded-xl transition-all shadow-lg shadow-indigo-600/20"
+              className="bg-black dark:bg-white hover:opacity-80 disabled:opacity-50 p-2.5 rounded-md transition-all shadow-sm"
             >
-              <Check className="w-4 h-4 text-white" />
+              <Check className="w-4 h-4 text-white dark:text-black" />
             </button>
             <button 
               onClick={() => setIsInviting(false)} 
-              className="p-2.5 bg-zinc-800 hover:bg-zinc-700 rounded-xl transition-colors border border-zinc-700/50"
+              className="p-2.5 bg-zinc-100 dark:bg-zinc-900 hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded-md transition-colors border border-black/5 dark:border-white/5"
             >
-              <X className="w-4 h-4 text-zinc-400" />
+              <X className="w-4 h-4 text-zinc-500 dark:text-zinc-400" />
             </button>
           </div>
         ) : (
           <div className="flex items-center gap-3">
             <button 
               onClick={() => setIsInviting(true)}
-              className="flex items-center gap-2.5 bg-zinc-800 hover:bg-zinc-700 px-6 py-3 rounded-2xl transition-all border border-zinc-700/50 hover:border-indigo-500/30 group"
+              className="flex items-center gap-2 bg-black dark:bg-white hover:opacity-90 px-5 py-2.5 rounded-md transition-all shadow-sm"
             >
-              <UserPlus className="w-4 h-4 text-indigo-400 group-hover:scale-110 transition-transform" />
-              <span className="text-xs font-black text-zinc-300 uppercase tracking-widest italic">Invite</span>
+              <UserPlus className="w-4 h-4 text-white dark:text-black" />
+              <span className="text-xs font-bold text-white dark:text-black uppercase tracking-widest">Invite</span>
             </button>
             
-            <button className="p-3.5 bg-zinc-800 hover:bg-zinc-700 rounded-2xl border border-zinc-700/50 hover:rotate-45 transition-all">
-              <Settings className="w-4 h-4 text-zinc-400" />
+            <button className="p-2.5 bg-white dark:bg-black hover:bg-zinc-50 dark:hover:bg-zinc-900 rounded-md border border-black/10 dark:border-white/10 transition-colors">
+              <Settings className="w-4 h-4 text-zinc-600 dark:text-zinc-400" />
             </button>
           </div>
         )}

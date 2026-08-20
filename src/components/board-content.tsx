@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Plus, GripVertical, Trash2, X, Calendar, AlignLeft, MoreHorizontal } from "lucide-react";
 import { toast } from "sonner";
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
-import { createList, deleteList, createCard } from "@/app/(dashboard)/actions";
+import { createList, deleteList, createCard, updateListOrder, updateCardOrder } from "@/app/(dashboard)/actions";
 import { List, Card } from "@prisma/client";
 
 interface CardItem extends Card {
@@ -46,14 +46,28 @@ export const BoardContent = ({ boardId, initialData }: BoardContentProps) => {
     if (type === "list") {
       const [reorderedItem] = newOrderedData.splice(source.index, 1);
       newOrderedData.splice(destination.index, 0, reorderedItem);
-      setOrderedData(newOrderedData);
+      
+      const orderedLists = newOrderedData.map((list, idx) => ({ ...list, order: idx + 1 }));
+      setOrderedData(orderedLists);
+      updateListOrder(boardId, orderedLists.map(l => ({ id: l.id, order: l.order })));
     } else {
-      const sourceList = newOrderedData.find(l => l.id === source.droppableId);
-      const destList = newOrderedData.find(l => l.id === destination.droppableId);
-      if (!sourceList || !destList) return;
+      const sourceListIndex = newOrderedData.findIndex(l => l.id === source.droppableId);
+      const destListIndex = newOrderedData.findIndex(l => l.id === destination.droppableId);
+      if (sourceListIndex === -1 || destListIndex === -1) return;
+      
+      const sourceList = newOrderedData[sourceListIndex];
+      const destList = newOrderedData[destListIndex];
+
       const [movedCard] = sourceList.cards.splice(source.index, 1);
+      movedCard.listId = destination.droppableId;
+
       destList.cards.splice(destination.index, 0, movedCard);
-      setOrderedData(newOrderedData);
+      
+      const destCardsOrdered = destList.cards.map((card, idx) => ({ ...card, order: idx + 1, listId: destination.droppableId }));
+      destList.cards = destCardsOrdered;
+
+      setOrderedData([...newOrderedData]);
+      updateCardOrder(boardId, destCardsOrdered.map(c => ({ id: c.id, order: c.order, listId: c.listId })));
     }
   };
 
@@ -85,12 +99,6 @@ export const BoardContent = ({ boardId, initialData }: BoardContentProps) => {
 
   return (
     <DragDropContext onDragEnd={onDragEnd}>
-      <style jsx global>{`
-        ::-webkit-calendar-picker-indicator { filter: invert(1); cursor: pointer; opacity: 0.7; }
-        input[type="date"]::-webkit-inner-spin-button,
-        input[type="date"]::-webkit-clear-button { display: none; }
-      `}</style>
-
       <Droppable droppableId="lists" type="list" direction="horizontal">
         {(provided) => (
           <div {...provided.droppableProps} ref={provided.innerRef} className="flex gap-6 h-full items-start pb-4">
@@ -100,100 +108,109 @@ export const BoardContent = ({ boardId, initialData }: BoardContentProps) => {
                   <div 
                     ref={provided.innerRef} 
                     {...provided.draggableProps} 
-                    className={`w-80 shrink-0 bg-zinc-900/60 border ${snapshot.isDragging ? 'border-indigo-500 shadow-2xl' : 'border-zinc-800'} rounded-[2.5rem] flex flex-col transition-all duration-300`}
+                    className={`w-80 shrink-0 bg-white dark:bg-black border ${snapshot.isDragging ? 'border-black dark:border-white shadow-xl' : 'border-black/10 dark:border-white/10 shadow-sm'} rounded-xl flex flex-col transition-all duration-200`}
                   >
-                    <div {...provided.dragHandleProps} className="p-6 flex items-center justify-between group border-b border-zinc-800/50">
-                      <div className="flex items-center gap-3">
-                        <GripVertical className="w-4 h-4 text-zinc-700" />
-                        <div className="font-bold text-[11px] text-zinc-300 uppercase tracking-widest italic">{list.title}</div>
+                    <div {...provided.dragHandleProps} className="p-4 flex items-center justify-between group border-b border-black/5 dark:border-white/5">
+                      <div className="flex items-center gap-2">
+                        <div className="p-1 hover:bg-zinc-100 dark:hover:bg-zinc-900 rounded-md transition-colors text-zinc-400 cursor-grab active:cursor-grabbing">
+                          <GripVertical className="w-4 h-4" />
+                        </div>
+                        <div className="font-bold text-xs text-black dark:text-white uppercase tracking-widest">{list.title}</div>
+                        <div className="ml-2 bg-zinc-100 dark:bg-zinc-900 border border-black/5 dark:border-white/5 px-2 py-0.5 rounded-sm text-[10px] font-bold text-zinc-500">
+                          {list.cards.length}
+                        </div>
                       </div>
-                      <button onClick={() => deleteList(list.id, boardId)} className="opacity-0 group-hover:opacity-100 p-2 text-zinc-500 hover:text-red-400 transition-all">
+                      <button onClick={() => deleteList(list.id, boardId)} className="opacity-0 group-hover:opacity-100 p-1.5 text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-md transition-all">
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
 
                     <Droppable droppableId={list.id} type="card">
-                      {(provided) => (
-                        <div {...provided.droppableProps} ref={provided.innerRef} className="p-4 space-y-3 min-h-[20px]">
+                      {(provided, snapshot) => (
+                        <div {...provided.droppableProps} ref={provided.innerRef} className={`p-3 space-y-3 min-h-[50px] transition-colors rounded-b-xl ${snapshot.isDraggingOver ? 'bg-zinc-50 dark:bg-zinc-900/50' : ''}`}>
                           {list.cards?.map((card, cardIndex) => (
                             <Draggable key={card.id} draggableId={card.id} index={cardIndex}>
                               {(provided, snapshot) => (
-                                <div 
-                                  ref={provided.innerRef} 
-                                  {...provided.draggableProps} 
-                                  {...provided.dragHandleProps} 
-                                  className={`bg-zinc-800/40 border ${snapshot.isDragging ? 'border-indigo-500 bg-zinc-800' : 'border-zinc-800'} p-4 rounded-2xl flex flex-col gap-2 group/card transition-all`}
-                                >
-                                  <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-3">
-                                      <input type="checkbox" className="w-4 h-4 rounded border-zinc-700 bg-zinc-900 text-indigo-600 focus:ring-0 cursor-pointer" />
-                                      <span className="text-sm text-zinc-200 font-bold leading-none">{card.title}</span>
-                                    </div>
-                                    <MoreHorizontal className="w-4 h-4 text-zinc-600 opacity-0 group-hover/card:opacity-100 transition-opacity" />
-                                  </div>
-                                  {(card.description || card.deadline) && (
-                                    <div className="pl-7 space-y-1.5">
-                                      {card.deadline && (
-                                        <div className="flex items-center gap-1.5 text-[9px] text-indigo-400 font-black uppercase tracking-tighter">
-                                          <Calendar className="w-3 h-3" /> {card.deadline}
+                                  <div 
+                                    ref={provided.innerRef} 
+                                    {...provided.draggableProps} 
+                                    {...provided.dragHandleProps} 
+                                    className={`bg-white dark:bg-zinc-950 border ${snapshot.isDragging ? 'border-black dark:border-white shadow-lg' : 'border-black/10 dark:border-white/10 shadow-sm hover:border-black/20 dark:hover:border-white/20'} p-4 rounded-lg flex flex-col gap-3 group/card transition-all cursor-grab active:cursor-grabbing`}
+                                  >
+                                    <div className="flex items-start justify-between gap-3">
+                                      <div className="flex items-start gap-3 mt-0.5">
+                                        <div className="relative flex items-center justify-center">
+                                          <input type="checkbox" className="peer w-4 h-4 rounded-sm border-black/20 dark:border-white/20 bg-transparent text-black dark:text-white focus:ring-0 cursor-pointer transition-colors checked:bg-black dark:checked:bg-white" />
                                         </div>
-                                      )}
-                                      {card.description && (
-                                        <p className="text-[10px] text-zinc-500 line-clamp-2 italic font-medium">{card.description}</p>
-                                      )}
+                                        <span className="text-[13px] text-black dark:text-white font-medium leading-tight">{card.title}</span>
+                                      </div>
+                                      <button className="opacity-0 group-hover/card:opacity-100 p-1 hover:bg-zinc-100 dark:hover:bg-zinc-900 rounded-md transition-all">
+                                        <MoreHorizontal className="w-4 h-4 text-zinc-400" />
+                                      </button>
                                     </div>
-                                  )}
-                                </div>
+                                    {(card.description || card.deadline) && (
+                                      <div className="pl-7 space-y-2">
+                                        {card.description && (
+                                          <p className="text-[11px] text-zinc-500 line-clamp-2 leading-relaxed font-medium">{card.description}</p>
+                                        )}
+                                        {card.deadline && (
+                                          <div className="inline-flex items-center gap-1.5 text-[10px] text-zinc-600 dark:text-zinc-400 font-bold uppercase tracking-widest bg-zinc-100 dark:bg-zinc-900 border border-black/5 dark:border-white/5 px-2 py-1 rounded-sm">
+                                            <Calendar className="w-3 h-3" /> {card.deadline}
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
                               )}
                             </Draggable>
                           ))}
                           {provided.placeholder}
 
                           {addingCardToListId === list.id ? (
-                            <div className="space-y-3 p-5 bg-zinc-900/90 rounded-[2rem] border border-zinc-800 shadow-2xl animate-in fade-in zoom-in duration-200">
+                            <div className="space-y-3 p-4 bg-white dark:bg-zinc-950 rounded-lg border border-black/20 dark:border-white/20 shadow-md">
                               <div className="space-y-1.5">
-                                <label className="text-[9px] uppercase tracking-[0.2em] font-black text-zinc-600 ml-1">Title</label>
+                                <label className="text-[9px] uppercase tracking-widest font-bold text-zinc-500 ml-1">Title</label>
                                 <input
                                   autoFocus
                                   placeholder="Task name..."
-                                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500/50 transition-all font-bold"
+                                  className="w-full bg-transparent border border-black/10 dark:border-white/10 rounded-md px-3 py-2 text-sm text-black dark:text-white focus:outline-none focus:border-black dark:focus:border-white transition-all font-medium"
                                   value={newCardTitle}
                                   onChange={(e) => setNewCardTitle(e.target.value)}
                                 />
                               </div>
                               <div className="space-y-1.5">
-                                <label className="text-[9px] uppercase tracking-[0.2em] font-black text-zinc-600 ml-1">Notes</label>
-                                <div className="flex items-center gap-3 bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 focus-within:border-indigo-500/50 transition-all">
-                                  <AlignLeft className="w-4 h-4 text-zinc-500" />
+                                <label className="text-[9px] uppercase tracking-widest font-bold text-zinc-500 ml-1">Notes</label>
+                                <div className="flex items-start gap-2 border border-black/10 dark:border-white/10 rounded-md px-3 py-2 focus-within:border-black dark:focus-within:border-white transition-all">
+                                  <AlignLeft className="w-4 h-4 text-zinc-400 mt-0.5" />
                                   <textarea 
-                                    rows={1}
+                                    rows={2}
                                     placeholder="Add notes..." 
-                                    className="bg-transparent border-none text-[11px] text-zinc-300 focus:outline-none w-full resize-none"
+                                    className="bg-transparent border-none text-xs text-black dark:text-white focus:outline-none w-full resize-none font-medium"
                                     value={newCardDesc}
                                     onChange={(e) => setNewCardDesc(e.target.value)}
                                   />
                                 </div>
                               </div>
                               <div className="space-y-1.5">
-                                <label className="text-[9px] uppercase tracking-[0.2em] font-black text-zinc-600 ml-1">Deadline</label>
-                                <div className="flex items-center gap-3 bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 focus-within:border-indigo-500/50 transition-all">
-                                  <Calendar className="w-4 h-4 text-white/70" />
+                                <label className="text-[9px] uppercase tracking-widest font-bold text-zinc-500 ml-1">Deadline</label>
+                                <div className="flex items-center gap-2 border border-black/10 dark:border-white/10 rounded-md px-3 py-2 focus-within:border-black dark:focus-within:border-white transition-all">
+                                  <Calendar className="w-4 h-4 text-zinc-400" />
                                   <input 
                                     type="date" 
-                                    className="bg-transparent border-none text-[11px] text-zinc-200 focus:outline-none w-full color-scheme-dark font-black h-6 uppercase"
+                                    className="bg-transparent border-none text-xs text-black dark:text-white focus:outline-none w-full font-medium"
                                     value={newCardDate}
                                     onChange={(e) => setNewCardDate(e.target.value)}
                                   />
                                 </div>
                               </div>
                               <div className="flex items-center gap-2 pt-2">
-                                <button onClick={() => onAddCard(list.id)} className="bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-indigo-600/20">Add</button>
-                                <button onClick={() => setAddingCardToListId(null)} className="p-1.5 text-zinc-500 hover:text-white transition-colors"><X className="w-4 h-4" /></button>
+                                <button onClick={() => onAddCard(list.id)} className="bg-black dark:bg-white text-white dark:text-black px-4 py-2 rounded-md text-[10px] font-bold uppercase tracking-widest hover:opacity-80 transition-all shadow-sm">Add Card</button>
+                                <button onClick={() => setAddingCardToListId(null)} className="p-2 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-900 rounded-md transition-colors"><X className="w-4 h-4" /></button>
                               </div>
                             </div>
                           ) : (
-                            <button onClick={() => setAddingCardToListId(list.id)} className="w-full p-3 flex items-center gap-2 text-xs font-black text-zinc-600 hover:text-indigo-400 transition-all uppercase tracking-tighter italic">
-                              <Plus className="w-4 h-4" /> Add a card
+                            <button onClick={() => setAddingCardToListId(list.id)} className="w-full p-2.5 flex items-center justify-center gap-2 text-xs font-bold text-zinc-500 hover:text-black dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 rounded-md transition-all tracking-widest uppercase">
+                              <Plus className="w-3.5 h-3.5" /> Add a card
                             </button>
                           )}
                         </div>
@@ -206,28 +223,28 @@ export const BoardContent = ({ boardId, initialData }: BoardContentProps) => {
             {provided.placeholder}
 
             {isAddingList ? (
-              <div className="w-80 shrink-0 bg-zinc-900 border border-zinc-800 p-6 rounded-[2.5rem] space-y-4 shadow-2xl animate-in fade-in zoom-in duration-200">
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest ml-1">List Title</label>
+              <div className="w-80 shrink-0 bg-white dark:bg-black border border-black/20 dark:border-white/20 p-4 rounded-xl space-y-4 shadow-md">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest ml-1">List Title</label>
                   <input 
                     autoFocus
                     value={newListTitle}
                     onChange={(e) => setNewListTitle(e.target.value)}
                     placeholder="e.g. Done..."
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-5 py-4 text-sm text-white focus:outline-none focus:border-indigo-500 transition-all font-bold"
+                    className="w-full bg-transparent border border-black/10 dark:border-white/10 rounded-md px-3 py-2.5 text-sm text-black dark:text-white focus:outline-none focus:border-black dark:focus:border-white transition-all font-medium"
                   />
                 </div>
                 <div className="flex items-center gap-2">
-                  <button onClick={onAddList} className="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white py-3 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all">Create</button>
-                  <button onClick={() => setIsAddingList(false)} className="p-3 text-zinc-500 hover:text-white transition-colors"><X className="w-5 h-5" /></button>
+                  <button onClick={onAddList} className="flex-1 bg-black dark:bg-white text-white dark:text-black py-2.5 rounded-md text-[11px] font-bold uppercase tracking-widest hover:opacity-80 transition-all shadow-sm">Create List</button>
+                  <button onClick={() => setIsAddingList(false)} className="p-2.5 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-900 rounded-md transition-colors"><X className="w-4 h-4" /></button>
                 </div>
               </div>
             ) : (
               <button 
                 onClick={() => setIsAddingList(true)}
-                className="w-80 shrink-0 bg-white/5 border border-dashed border-white/10 hover:bg-white/10 hover:border-white/20 p-8 rounded-[2.5rem] flex items-center justify-center gap-3 text-zinc-500 font-black text-sm transition-all italic tracking-tighter"
+                className="w-80 shrink-0 bg-transparent border border-dashed border-black/20 dark:border-white/20 hover:border-black/40 dark:hover:border-white/40 hover:bg-black/5 dark:hover:bg-white/5 p-6 rounded-xl flex items-center justify-center gap-2 text-zinc-500 font-bold text-xs transition-all uppercase tracking-widest"
               >
-                <Plus className="w-5 h-5" /> ADD ANOTHER LIST
+                <Plus className="w-4 h-4" /> ADD ANOTHER LIST
               </button>
             )}
           </div>

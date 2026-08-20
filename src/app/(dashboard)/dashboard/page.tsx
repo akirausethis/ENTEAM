@@ -12,13 +12,13 @@ async function createBoardAction(title: string) {
 
   try {
     const cookieStore = await cookies();
-    const userName = cookieStore.get("user_name")?.value;
+    const userId = cookieStore.get("user_id")?.value;
 
-    if (!userName) return undefined;
+    if (!userId) return undefined;
 
     // 1. Cari user di DB untuk dapat ID-nya
-    const user = await db.user.findFirst({
-      where: { name: userName }
+    const user = await db.user.findUnique({
+      where: { id: userId }
     });
 
     if (!user) return undefined;
@@ -27,7 +27,7 @@ async function createBoardAction(title: string) {
     const newBoard = await db.board.create({
       data: {
         title,
-        userId: user.id, // WAJIB ADA INI NGAB
+        userId: user.id,
       },
     });
 
@@ -41,11 +41,11 @@ async function createBoardAction(title: string) {
 
 export default async function DashboardPage() {
   const cookieStore = await cookies();
-  const userName = cookieStore.get("user_name")?.value;
+  const userId = cookieStore.get("user_id")?.value;
 
   // 1. Ambil info user
-  const user = await db.user.findFirst({
-    where: { name: userName }
+  const user = await db.user.findUnique({
+    where: { id: userId || "" }
   });
 
   // 2. Ambil board KHUSUS milik user yang login

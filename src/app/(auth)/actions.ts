@@ -13,7 +13,7 @@ export async function signUpAction(formData: FormData) {
   const password = formData.get("password") as string;
 
   if (!name || !email || !password) {
-    return { error: "Semua field wajib diisi, Ngab!" };
+    return { error: "Please fill in all required fields." };
   }
 
   try {
@@ -23,7 +23,7 @@ export async function signUpAction(formData: FormData) {
     });
 
     if (existingUser) {
-      return { error: "Email sudah terdaftar, silakan Sign In!" };
+      return { error: "Email is already registered. Please sign in." };
     }
 
     // 2. Hash Password
@@ -37,7 +37,7 @@ export async function signUpAction(formData: FormData) {
         email,
         password: hashedPassword,
         displayName: name,
-        bio: "Baru gabung di EnTeam! 🚀",
+        bio: "Joined EnTeam.",
         twoFactorEnabled: false,
         // Jangan masukkan field yang tidak ada di schema atau belum di-db push
       },
@@ -46,7 +46,7 @@ export async function signUpAction(formData: FormData) {
     // 4. Set Cookie Session
     // Di Next.js 15, cookies() harus di-await
     const cookieStore = await cookies();
-    cookieStore.set("user_name", user.name, {
+    cookieStore.set("user_id", user.id, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       maxAge: 60 * 60 * 24 * 7, // 1 minggu
@@ -54,7 +54,7 @@ export async function signUpAction(formData: FormData) {
       sameSite: "lax",
     });
 
-    return { success: true };
+    return { success: true, name: user.name };
   } catch (error: unknown) {
     console.error("SIGNUP_DATABASE_ERROR:", error);
     
@@ -62,11 +62,12 @@ export async function signUpAction(formData: FormData) {
     
     // Jika error karena constraint unik (P2002)
     if (prismaError.code === 'P2002') {
-      return { error: "Email ini sudah dipakai, coba yang lain!" };
+      return { error: "This email or name is already in use." };
     }
 
-    // Cek apakah ada field yang kurang di database
-    return { error: "Gagal membuat akun. Pastikan database sudah di-push (npx prisma db push)!" };
+    // Expose raw error message for debugging
+    const errorMsg = prismaError.message || String(error);
+    return { error: `Database Error: ${errorMsg}` };
   }
 }
 
@@ -78,7 +79,7 @@ export async function signInAction(formData: FormData) {
   const password = formData.get("password") as string;
 
   if (!email || !password) {
-    return { error: "Email dan password wajib diisi!" };
+    return { error: "Email and password are required." };
   }
 
   try {
@@ -87,17 +88,17 @@ export async function signInAction(formData: FormData) {
     });
 
     if (!user) {
-      return { error: "User tidak ditemukan!" };
+      return { error: "User not found." };
     }
 
     const isPasswordValid = await bcrypt.compare(password, user.password);
 
     if (!isPasswordValid) {
-      return { error: "Password kamu salah!" };
+      return { error: "Incorrect password." };
     }
 
     const cookieStore = await cookies();
-    cookieStore.set("user_name", user.name, {
+    cookieStore.set("user_id", user.id, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       maxAge: 60 * 60 * 24 * 7,
@@ -105,9 +106,9 @@ export async function signInAction(formData: FormData) {
       sameSite: "lax",
     });
 
-    return { success: true };
+    return { success: true, name: user.name };
   } catch (error) {
     console.error("SIGNIN_ERROR:", error);
-    return { error: "Terjadi kesalahan sistem saat login." };
+    return { error: "A system error occurred during login." };
   }
 }
